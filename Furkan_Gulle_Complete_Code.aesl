@@ -1,0 +1,141 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+
+
+<!--list of constants-->
+<constant value="1000" name="itemMax"/>
+<constant value="1000" name="itemIdeal"/>
+<constant value="0" name="itemFatal"/>
+<constant value="20" name="itemDecay"/>
+<constant value="500" name="speed"/>
+<constant value="50" name="timeTick"/>
+
+
+<!--show keywords state-->
+<keywords flag="true"/>
+
+
+<!--node thymio-II-->
+<node nodeId="1" name="thymio-II">var ammo # 1st variable
+var armour # 2nd variable
+var alive # status
+var status = 0
+var beat # leds for the beat animation
+var count = 0
+var turnAway = 0 # allows the robot to determine if it wants to go out of the zone or stay in the zone
+var turn = 0
+var ammoIncreasing = 0
+var armourIncreasing = 0
+
+callsub initialiseUSER
+callsub initialiseBeat
+callsub resetLeds
+
+sub initialiseUSER
+	ammo = 1000 #
+	armour = 1000
+	alive = 1 #
+	timer.period[0] = timeTick
+	call sd.open(124,status)
+	
+sub write
+	call sd.write(ammo,1)
+	call sd.write(armour,2)
+
+onevent timer0 # original loop
+	if alive!=0 then
+		callsub resourceChange
+		callsub movement
+		callsub resetLeds
+	end
+	callsub write
+			
+sub movement
+	#sets default speeds
+	if turnAway == 1 then
+		motor.left.target = 0 
+		motor.right.target = 0
+	else 
+		motor.left.target = 500
+		motor.right.target = 500
+	end
+	#tells the robot to get out of the zone
+	if ammo > 990 or armour > 990 or ammo &lt; 500 or armour &lt; 500 then
+		turnAway = 0
+	elseif (armour > 500 and ammoIncreasing == 1) or (ammo > 500 and armourIncreasing == 1) then
+		turnAway = 1
+	end
+	#determines if the robot should turn left or right by using the variable "rotation" 
+	if prox.horizontal[2] > 3000 then
+		turn = 1
+	end
+	#do the actual turning
+	if turn == 1 then
+		if prox.horizontal[0] + prox.horizontal[1] > prox.horizontal[3] + prox.horizontal[4]  then
+			motor.left.target = 500
+			motor.right.target = -500
+			if prox.horizontal[0] &lt; 3000 and prox.horizontal[1] &lt; 3000 then
+				turn = 0
+			end
+		else
+			motor.left.target = -500
+			motor.right.target = 500
+			if prox.horizontal[3] &lt; 3000 and prox.horizontal[4] &lt; 3000 then
+				turn = 0
+				end
+		end
+		
+	end
+		
+sub resourceChange #does all the increase/decrease calculations for the resources and checks for death
+	if prox.ground.reflected[0]>800 then
+		ammo -= itemDecay/(1000/timeTick)
+		armour -= itemDecay/(1000/timeTick)
+		ammoIncreasing = 0
+		armourIncreasing = 0
+	elseif prox.ground.reflected[0]>600 then
+		ammo += 4*itemDecay/(1000/timeTick)
+		armour -= itemDecay/(1000/timeTick)
+		ammoIncreasing = 1
+		armourIncreasing = 0
+	else
+		ammo -= itemDecay/(1000/timeTick)
+		armour += 4*itemDecay/(1000/timeTick)
+		armourIncreasing = 1
+		ammoIncreasing = 0
+			
+	end
+	if ammo > 1000 then
+		ammo = 1000
+	end
+	if armour > 1000 then
+		armour = 1000
+	end
+	if ammo &lt;= itemFatal or armour &lt;= itemFatal then
+		callsub death
+	end
+
+sub death # activate leds and stop timer
+	alive = 0
+	call leds.top(32,0,0) 
+	timer.period[0] = 0
+	turnAway = 0
+
+sub initialiseBeat # set leds to 0
+	beat = 0
+	call leds.circle(0,0,0,0,0,0,0,0)
+
+sub resetLeds # set leds to 0
+	if ammoIncreasing == 0 and armourIncreasing == 0 then
+		call leds.top(0,0,0)
+	end #	
+
+
+
+</node>
+
+
+</network>
